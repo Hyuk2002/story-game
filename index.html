@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주유소 딜레마</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1a2b; /* 더 어두운 배경 */
+            color: #e4e4e7; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        #game-container {
+            width: 100%;
+            max-width: 800px;
+            background-color: #1c2b46; /* 컨테이너 배경 */
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
+        }
+        #scene-image-container {
+            width: 100%;
+            height: 450px; /* 고정 높이 */
+            background-color: #333; /* 이미지 로딩 전 배경색 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            overflow: hidden; 
+        }
+        #scene-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; 
+            border-radius: 8px;
+            display: none; 
+        }
+        .image-placeholder-text {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        .story-text {
+            white-space: pre-wrap;
+            line-height: 1.7;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+        .choice-button {
+            transition: all 0.2s;
+        }
+        .choice-button:hover {
+            transform: translateY(-2px);
+            background-color: #dc2626; 
+            box-shadow: 0 5px 15px rgba(220, 38, 38, 0.4); 
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        .stat-item {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #f59e0b; 
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 2s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    
+    <div class="mb-6 p-4 bg-gray-800 rounded-lg">
+        <div id="status-user" class="text-lg font-bold text-yellow-300 mb-3">플레이어: 로딩 중...</div>
+        
+        <!-- 스탯 표시 그리드 -->
+        <div id="stats-grid" class="status-grid text-xs">
+            <div id="health" class="stat-item bg-red-800 text-white"></div>
+            <div id="reputation" class="stat-item bg-blue-700 text-white"></div>
+            <div id="morality" class="stat-item bg-green-700 text-white"></div>
+            <div id="danger-level" class="stat-item bg-yellow-700 text-white"></div>
+            <div id="ptsd-level" class="stat-item bg-purple-700 text-white"></div>
+        </div>
+    </div>
+
+    <!-- 장면 이미지 컨테이너 -->
+    <div id="scene-image-container">
+        <!-- 이미지가 없을 때 표시되는 텍스트 -->
+        <div id="image-placeholder" class="image-placeholder-text">이미지 로딩 중 / 없음</div>
+        <!-- 실제 이미지가 로드될 공간 -->
+        <img id="scene-image" src="" alt="현재 장면 이미지">
+    </div>
+
+    <h1 id="scene-title" class="text-4xl font-bold mb-4 text-red-300">로딩 중...</h1>
+    
+    <p id="scene-description" class="story-text text-gray-300"></p>
+
+    <div id="choices-container" class="space-y-3 mt-6">
+        <!-- 선택지가 여기에 동적으로 삽입됩니다. -->
+        <div id="loading-indicator" class="flex justify-center hidden">
+            <div class="loader"></div>
+        </div>
+    </div>
+    
+    <div id="error-message" class="mt-6 p-3 bg-red-800 text-white rounded-lg font-bold hidden"></div>
+
+</div>
+
+<script>
+    // Game state variables
+    let currentState = {};
+    let currentScene = {};
+
+    // DOM element cache
+    const sceneImageContainerEl = document.getElementById('scene-image-container');
+    const sceneImageEl = document.getElementById('scene-image'); 
+    const imagePlaceholderEl = document.getElementById('image-placeholder');
+    const sceneTitleEl = document.getElementById('scene-title');
+    const sceneDescriptionEl = document.getElementById('scene-description');
+    const choicesContainerEl = document.getElementById('choices-container');
+    const errorEl = document.getElementById('error-message');
+    const statusUserEl = document.getElementById('status-user');
+    const healthEl = document.getElementById('health');
+    const reputationEl = document.getElementById('reputation');
+    const moralityEl = document.getElementById('morality');
+    const dangerLevelEl = document.getElementById('danger-level');
+    const ptsdLevelEl = document.getElementById('ptsd-level');
+    const loadingIndicatorEl = document.getElementById('loading-indicator');
+
+    function setLoading(isLoading) {
+        if (isLoading) {
+            choicesContainerEl.innerHTML = '';
+            loadingIndicatorEl.classList.remove('hidden');
+        } else {
+            loadingIndicatorEl.classList.add('hidden');
+        }
+    }
+
+    // Function to update and display status
+    function updateUI() {
+        if (!currentScene.sceneId) {
+            sceneTitleEl.textContent = '게임 로딩 실패';
+            sceneDescriptionEl.textContent = '데이터를 불러올 수 없습니다. 서버 상태를 확인해주세요.';
+            return;
+        }
+        
+        // 1. Update status display
+        statusUserEl.textContent = `플레이어: ${currentState.username}`;
+        healthEl.textContent = `체력: ${currentState.health}%`;
+        reputationEl.textContent = `평판: ${currentState.reputation}`;
+        moralityEl.textContent = `도덕성: ${currentState.morality}`;
+        dangerLevelEl.textContent = `위험: ${currentState.dangerLevel}`;
+        ptsdLevelEl.textContent = `PTSD: ${currentState.PTSDLevel}`;
+        
+        // 2. Update scene text
+        sceneTitleEl.textContent = currentScene.title;
+        sceneDescriptionEl.textContent = currentScene.description;
+        
+        // 3. 🖼️ 이미지 처리 로직 (가장 단순하고 안정적인 로직)
+        if (currentScene.imageUrl) {
+            sceneImageEl.src = ''; // 이전 이미지 소스 초기화
+            sceneImageEl.style.display = 'none'; // 이미지 태그 숨기기
+            imagePlaceholderEl.textContent = '이미지 로딩 중...';
+            imagePlaceholderEl.classList.remove('hidden');
+            
+            // 이미지 로딩을 시도합니다.
+            const newImage = new Image();
+            newImage.onload = function() {
+                // 성공 시: 플레이스홀더 숨기고, 이미지 태그에 소스를 설정하여 표시
+                sceneImageEl.src = currentScene.imageUrl;
+                sceneImageEl.style.display = 'block';
+                imagePlaceholderEl.classList.add('hidden');
+            };
+            newImage.onerror = function() {
+                // 실패 시: 플레이스홀더에 오류 메시지 표시
+                imagePlaceholderEl.textContent = '이미지를 불러올 수 없습니다. (URL 오류 확인)';
+                imagePlaceholderEl.classList.remove('hidden');
+                sceneImageEl.style.display = 'none';
+            };
+            // 실제 로딩 시작
+            newImage.src = currentScene.imageUrl; 
+        } else {
+            // URL이 없는 경우: 이미지 숨기고 플레이스홀더 표시
+            sceneImageEl.style.display = 'none';
+            imagePlaceholderEl.textContent = '현재 장면에 이미지가 없습니다.';
+            imagePlaceholderEl.classList.remove('hidden');
+        }
+
+        // 4. Create choice buttons
+        choicesContainerEl.innerHTML = '';
+        
+        currentScene.choices.forEach((choice, index) => {
+            const button = document.createElement('button');
+            button.className = 'choice-button w-full text-left bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md border-b-4 border-red-800';
+            button.textContent = `${index + 1}. ${choice.choiceText}`;
+            
+            // Connect click event only if nextSceneId exists.
+            if (choice.nextSceneId) {
+                button.onclick = () => moveScene(choice.nextSceneId); 
+            }
+            
+            choicesContainerEl.appendChild(button);
+        });
+        
+        setLoading(false);
+    }
+
+    // Common function to fetch game data from the server (with retry logic)
+    async function fetchGameData(url, method = 'GET', body = null) {
+        errorEl.classList.add('hidden');
+        setLoading(true);
+
+        const MAX_RETRIES = 3;
+        for (let i = 0; i < MAX_RETRIES; i++) {
+            try {
+                const options = {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                };
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+                
+                const response = await fetch(url, options);
+                
+                // Handle errors if HTTP status code is 400 or higher
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP Error ${response.status}: ${errorText.substring(0, 100)}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentState = data.userState;
+                    currentScene = data.sceneData;
+                    updateUI();
+                    return true;
+                } else {
+                    errorEl.textContent = `게임 오류: ${data.message}`;
+                    errorEl.classList.remove('hidden');
+                    setLoading(false);
+                    return false;
+                }
+
+            } catch (error) {
+                if (i < MAX_RETRIES - 1) {
+                    // Apply exponential backoff (1s, 2s, 4s)
+                    await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+                } else {
+                    console.error("Fetch Error:", error);
+                    errorEl.textContent = `서버 연결 실패! Express 서버(http://localhost:8080) 실행 여부를 확인하세요. (오류: ${error.message})`;
+                    errorEl.classList.remove('hidden');
+                    setLoading(false);
+                    return false;
+                }
+            }
+        }
+    }
+
+
+    // Game start function (initial load)
+    async function loadGame() {
+        sceneTitleEl.textContent = '서버 연결 중...';
+        sceneDescriptionEl.textContent = '첫 번째 딜레마를 불러오는 중입니다. 잠시만 기다려주세요.';
+        await fetchGameData('http://localhost:8080/api/game/start');
+    }
+
+    // Scene transition function (called on button click)
+    async function moveScene(nextSceneId) {
+        const success = await fetchGameData(
+            'http://localhost:8080/api/game/move', 
+            'POST', 
+            { 
+                nextSceneId: nextSceneId,
+                currentSceneId: currentScene.sceneId 
+            }
+        );
+        
+        if (success) {
+            console.log(`Scene move successful: ${nextSceneId}`);
+        }
+    }
+
+    // Start game on page load
+    window.addEventListener('load', loadGame);
+</script>
+
+</body>
+</html>
