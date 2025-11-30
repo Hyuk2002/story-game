@@ -1,185 +1,266 @@
-<script>
-    // Game state variables
-    let currentState = {};
-    let currentScene = {};
-
-    // DOM element cache
-    const sceneImageContainerEl = document.getElementById('scene-image-container');
-    const sceneImageEl = document.getElementById('scene-image'); 
-    const imagePlaceholderEl = document.getElementById('image-placeholder');
-    const sceneTitleEl = document.getElementById('scene-title');
-    const sceneDescriptionEl = document.getElementById('scene-description');
-    const choicesContainerEl = document.getElementById('choices-container');
-    const errorEl = document.getElementById('error-message');
-    const statusUserEl = document.getElementById('status-user');
-    const healthEl = document.getElementById('health');
-    const reputationEl = document.getElementById('reputation');
-    const moralityEl = document.getElementById('morality');
-    const dangerLevelEl = document.getElementById('danger-level');
-    const ptsdLevelEl = document.getElementById('ptsd-level');
-    const loadingIndicatorEl = document.getElementById('loading-indicator');
-
-    function setLoading(isLoading) {
-        if (isLoading) {
-            choicesContainerEl.innerHTML = '';
-            loadingIndicatorEl.classList.remove('hidden');
-        } else {
-            loadingIndicatorEl.classList.add('hidden');
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스토리 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 커스텀 스크롤바 */
+        body::-webkit-scrollbar {
+            width: 8px;
         }
-    }
-
-    // Function to update and display status
-    function updateUI() {
-        if (!currentScene.sceneId) {
-            sceneTitleEl.textContent = '게임 로딩 실패';
-            sceneDescriptionEl.textContent = '데이터를 불러올 수 없습니다. 서버 상태를 확인해주세요.';
-            return;
+        body::-webkit-scrollbar-thumb {
+            background-color: #fca5a5; /* Red-400 */
+            border-radius: 4px;
         }
-        
-        // 1. Update status display
-        statusUserEl.textContent = `플레이어: ${currentState.username}`;
-        healthEl.textContent = `체력: ${currentState.health}%`;
-        reputationEl.textContent = `평판: ${currentState.reputation}`;
-        moralityEl.textContent = `도덕성: ${currentState.morality}`;
-        dangerLevelEl.textContent = `위험: ${currentState.dangerLevel}`;
-        ptsdLevelEl.textContent = `PTSD: ${currentState.PTSDLevel}`;
-        
-        // 2. Update scene text
-        sceneTitleEl.textContent = currentScene.title;
-        sceneDescriptionEl.textContent = currentScene.description;
-        
-        // 3. 🖼️ 이미지 처리 로직 (이미지 경로 수정)
-        if (currentScene.imageUrl) {
-            // 💡 수정: imageUrl에서 파일명만 추출하여 '/images/' 경로를 강제합니다.
-            // 이렇게 해야 Render 서버의 정적 파일 경로 규칙을 따릅니다.
-            const filename = currentScene.imageUrl.split('/').pop();
-            const correctImageUrl = `/images/${filename}`; 
+        body::-webkit-scrollbar-track {
+            background-color: #27272a; /* Zinc-800 */
+        }
+        /* 스토리 텍스트 애니메이션 */
+        .story-text {
+            white-space: pre-wrap;
+            animation: typing 3s steps(40, end);
+            overflow: hidden;
+            border-right: .15em solid orange;
+        }
+        @keyframes typing {
+            from { width: 0 }
+            to { width: 100% }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-4">
 
-            sceneImageEl.src = ''; 
-            sceneImageEl.style.display = 'none'; 
-            imagePlaceholderEl.textContent = '이미지 로딩 중...';
-            imagePlaceholderEl.classList.remove('hidden');
+    <div class="container mx-auto max-w-4xl">
+        
+        <div class="bg-gray-800 p-4 rounded-lg shadow-xl mb-6">
+            <div id="status-user" class="text-lg font-semibold mb-2 text-yellow-400">플레이어: 로딩 중...</div>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm font-medium">
+                <div id="health" class="bg-red-600 p-2 rounded text-center">체력: 100%</div>
+                <div id="reputation" class="bg-green-600 p-2 rounded text-center">평판: 50</div>
+                <div id="morality" class="bg-blue-600 p-2 rounded text-center">도덕성: 50</div>
+                <div id="danger-level" class="bg-orange-600 p-2 rounded text-center">위험: 0</div>
+                <div id="ptsd-level" class="bg-purple-600 p-2 rounded text-center">PTSD: 0</div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-xl mb-6">
             
-            const newImage = new Image();
-            newImage.onload = function() {
-                // 성공 시
-                sceneImageEl.src = correctImageUrl; // 수정된 경로 사용
-                sceneImageEl.style.display = 'block';
-                imagePlaceholderEl.classList.add('hidden');
-            };
-            newImage.onerror = function() {
-                // 실패 시
-                imagePlaceholderEl.textContent = `이미지 로드 실패: ${correctImageUrl} (경로 오류 확인)`;
+            <div id="scene-image-container" class="mb-6 relative">
+                <div id="image-placeholder" class="flex items-center justify-center bg-zinc-700 h-96 rounded-lg text-lg text-gray-400">
+                    이미지 로딩 중 / 없음
+                </div>
+                <img id="scene-image" src="" alt="Scene Image" class="w-full h-96 object-cover rounded-lg shadow-md hidden">
+            </div>
+
+            <h1 id="scene-title" class="text-4xl font-bold mb-4 text-red-300">
+                서버 연결 중...
+            </h1>
+            <p id="scene-description" class="story-text text-gray-300">
+                첫 번째 딜레마를 불러오는 중입니다. 잠시만 기다려주세요.
+            </p>
+
+            <div id="error-message" class="hidden mt-4 p-3 bg-red-900 border border-red-500 rounded text-red-100">
+                오류 내용
+            </div>
+
+        </div>
+        
+        <div class="bg-gray-800 p-6 rounded-lg shadow-xl">
+            <h2 class="text-2xl font-semibold mb-4 text-red-400">선택</h2>
+            
+            <div id="loading-indicator" class="text-center p-4">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto mb-2"></div>
+                <p>데이터 로딩 중...</p>
+            </div>
+
+            <div id="choices-container" class="space-y-3">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        // Game state variables
+        let currentState = {};
+        let currentScene = {};
+
+        // DOM element cache
+        const sceneImageContainerEl = document.getElementById('scene-image-container');
+        const sceneImageEl = document.getElementById('scene-image'); 
+        const imagePlaceholderEl = document.getElementById('image-placeholder');
+        const sceneTitleEl = document.getElementById('scene-title');
+        const sceneDescriptionEl = document.getElementById('scene-description');
+        const choicesContainerEl = document.getElementById('choices-container');
+        const errorEl = document.getElementById('error-message');
+        const statusUserEl = document.getElementById('status-user');
+        const healthEl = document.getElementById('health');
+        const reputationEl = document.getElementById('reputation');
+        const moralityEl = document.getElementById('morality');
+        const dangerLevelEl = document.getElementById('danger-level');
+        const ptsdLevelEl = document.getElementById('ptsd-level');
+        const loadingIndicatorEl = document.getElementById('loading-indicator');
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                choicesContainerEl.innerHTML = '';
+                loadingIndicatorEl.classList.remove('hidden');
+            } else {
+                loadingIndicatorEl.classList.add('hidden');
+            }
+        }
+
+        // Function to update and display status
+        function updateUI() {
+            if (!currentScene.sceneId) {
+                sceneTitleEl.textContent = '게임 로딩 실패';
+                sceneDescriptionEl.textContent = '데이터를 불러올 수 없습니다. 서버 상태를 확인해주세요.';
+                return;
+            }
+            
+            // 1. Update status display
+            statusUserEl.textContent = `플레이어: ${currentState.username}`;
+            healthEl.textContent = `체력: ${currentState.health}%`;
+            reputationEl.textContent = `평판: ${currentState.reputation}`;
+            moralityEl.textContent = `도덕성: ${currentState.morality}`;
+            dangerLevelEl.textContent = `위험: ${currentState.dangerLevel}`;
+            ptsdLevelEl.textContent = `PTSD: ${currentState.PTSDLevel}`;
+            
+            // 2. Update scene text
+            sceneTitleEl.textContent = currentScene.title;
+            sceneDescriptionEl.textContent = currentScene.description;
+            
+            // 3. 🖼️ 이미지 처리 로직 (이미지 경로 수정 및 로딩)
+            if (currentScene.imageUrl) {
+                // 💡 수정: imageUrl에서 파일명만 추출하여 '/images/' 경로를 강제합니다.
+                const filename = currentScene.imageUrl.split('/').pop();
+                const correctImageUrl = `/images/${filename}`; 
+
+                sceneImageEl.src = ''; 
+                sceneImageEl.style.display = 'none'; 
+                imagePlaceholderEl.textContent = '이미지 로딩 중...';
                 imagePlaceholderEl.classList.remove('hidden');
-                sceneImageEl.style.display = 'none';
-            };
-            // 실제 로딩 시작
-            newImage.src = correctImageUrl; // 수정된 경로 사용
-        } else {
-            // URL이 없는 경우
-            sceneImageEl.style.display = 'none';
-            imagePlaceholderEl.textContent = '현재 장면에 이미지가 없습니다.';
-            imagePlaceholderEl.classList.remove('hidden');
-        }
-
-        // 4. Create choice buttons
-        choicesContainerEl.innerHTML = '';
-        
-        currentScene.choices.forEach((choice, index) => {
-            const button = document.createElement('button');
-            button.className = 'choice-button w-full text-left bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md border-b-4 border-red-800';
-            button.textContent = `${index + 1}. ${choice.choiceText}`;
-            
-            // Connect click event only if nextSceneId exists.
-            if (choice.nextSceneId) {
-                button.onclick = () => moveScene(choice.nextSceneId); 
-            }
-            
-            choicesContainerEl.appendChild(button);
-        });
-        
-        setLoading(false);
-    }
-
-    // Common function to fetch game data from the server (with retry logic)
-    async function fetchGameData(url, method = 'GET', body = null) {
-        errorEl.classList.add('hidden');
-        setLoading(true);
-
-        const MAX_RETRIES = 3;
-        for (let i = 0; i < MAX_RETRIES; i++) {
-            try {
-                const options = {
-                    method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                
+                const newImage = new Image();
+                newImage.onload = function() {
+                    // 성공 시
+                    sceneImageEl.src = correctImageUrl; // 수정된 경로 사용
+                    sceneImageEl.style.display = 'block';
+                    imagePlaceholderEl.classList.add('hidden');
                 };
-                if (body) {
-                    options.body = JSON.stringify(body);
-                }
-                
-                // ✅ 수정: fetch 주소는 Render 서버의 상대 경로를 사용합니다.
-                const response = await fetch(url, options); 
-                
-                // Handle errors if HTTP status code is 400 or higher
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP Error ${response.status}: ${errorText.substring(0, 100)}`);
-                }
+                newImage.onerror = function() {
+                    // 실패 시
+                    imagePlaceholderEl.textContent = `이미지 로드 실패: ${correctImageUrl} (경로 오류 확인)`;
+                    imagePlaceholderEl.classList.remove('hidden');
+                    sceneImageEl.style.display = 'none';
+                };
+                // 실제 로딩 시작
+                newImage.src = correctImageUrl; // 수정된 경로 사용
+            } else {
+                // URL이 없는 경우
+                sceneImageEl.style.display = 'none';
+                imagePlaceholderEl.textContent = '현재 장면에 이미지가 없습니다.';
+                imagePlaceholderEl.classList.remove('hidden');
+            }
 
-                const data = await response.json();
+            // 4. Create choice buttons
+            choicesContainerEl.innerHTML = '';
+            
+            currentScene.choices.forEach((choice, index) => {
+                const button = document.createElement('button');
+                button.className = 'choice-button w-full text-left bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md border-b-4 border-red-800';
+                button.textContent = `${index + 1}. ${choice.choiceText}`;
                 
-                if (data.success) {
-                    currentState = data.userState;
-                    currentScene = data.sceneData;
-                    updateUI();
-                    return true;
-                } else {
-                    errorEl.textContent = `게임 오류: ${data.message}`;
-                    errorEl.classList.remove('hidden');
-                    setLoading(false);
-                    return false;
+                // Connect click event only if nextSceneId exists.
+                if (choice.nextSceneId) {
+                    button.onclick = () => moveScene(choice.nextSceneId); 
                 }
+                
+                choicesContainerEl.appendChild(button);
+            });
+            
+            setLoading(false);
+        }
 
-            } catch (error) {
-                if (i < MAX_RETRIES - 1) {
-                    // Apply exponential backoff (1s, 2s, 4s)
-                    await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
-                } else {
-                    console.error("Fetch Error:", error);
-                    errorEl.textContent = `서버 연결 실패! Render 서버에 문제가 없는지 확인하세요. (오류: ${error.message})`;
-                    errorEl.classList.remove('hidden');
-                    setLoading(false);
-                    return false;
+        // Common function to fetch game data from the server (with retry logic)
+        async function fetchGameData(url, method = 'GET', body = null) {
+            errorEl.classList.add('hidden');
+            setLoading(true);
+
+            const MAX_RETRIES = 3;
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const options = {
+                        method: method,
+                        headers: { 'Content-Type': 'application/json' },
+                    };
+                    if (body) {
+                        options.body = JSON.stringify(body);
+                    }
+                    
+                    // ✅ 수정: fetch 주소는 Render 서버의 상대 경로를 사용합니다.
+                    const response = await fetch(url, options); 
+                    
+                    // Handle errors if HTTP status code is 400 or higher
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP Error ${response.status}: ${errorText.substring(0, 100)}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        currentState = data.userState;
+                        currentScene = data.sceneData;
+                        updateUI();
+                        return true;
+                    } else {
+                        errorEl.textContent = `게임 오류: ${data.message}`;
+                        errorEl.classList.remove('hidden');
+                        setLoading(false);
+                        return false;
+                    }
+
+                } catch (error) {
+                    if (i < MAX_RETRIES - 1) {
+                        // Apply exponential backoff (1s, 2s, 4s)
+                        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+                    } else {
+                        console.error("Fetch Error:", error);
+                        errorEl.textContent = `서버 연결 실패! Render 서버에 문제가 없는지 확인하세요. (오류: ${error.message})`;
+                        errorEl.classList.remove('hidden');
+                        setLoading(false);
+                        return false;
+                    }
                 }
             }
         }
-    }
 
-
-    // Game start function (initial load)
-    async function loadGame() {
-        // H1과 P 태그에 초기 로딩 메시지가 있으므로, UI 업데이트 없이 바로 요청을 보냅니다.
-        // ✅ 수정: 로컬 주소 'http://localhost:8080' 삭제하고 상대 경로로 변경!
-        await fetchGameData('/api/game/start'); 
-    }
-
-    // Scene transition function (called on button click)
-    async function moveScene(nextSceneId) {
-        const success = await fetchGameData(
-            // ✅ 수정: 로컬 주소 'http://localhost:8080' 삭제하고 상대 경로로 변경!
-            '/api/game/move', 
-            'POST', 
-            { 
-                nextSceneId: nextSceneId,
-                currentSceneId: currentScene.sceneId 
-            }
-        );
-        
-        if (success) {
-            console.log(`Scene move successful: ${nextSceneId}`);
+        // 💡 수정된 loadGame 함수: DOM 접근 오류를 방지하기 위해 텍스트 설정 부분을 제거했습니다.
+        async function loadGame() {
+            // 이제 H1과 P 태그에 있는 초기 로딩 메시지가 먼저 표시되고,
+            // fetchGameData가 성공하면 updateUI가 호출되어 실제 내용을 표시합니다.
+            await fetchGameData('/api/game/start'); 
         }
-    }
 
-    // Start game on page load
-    window.addEventListener('load', loadGame);
-</script>
+        // Scene transition function (called on button click)
+        async function moveScene(nextSceneId) {
+            const success = await fetchGameData(
+                '/api/game/move', 
+                'POST', 
+                { 
+                    nextSceneId: nextSceneId,
+                    currentSceneId: currentScene.sceneId 
+                }
+            );
+            
+            if (success) {
+                console.log(`Scene move successful: ${nextSceneId}`);
+            }
+        }
+
+        // Start game on page load (DOM이 완전히 로드된 후 loadGame 함수 실행)
+        window.addEventListener('load', loadGame);
+    </script>
+</body>
+</html>
