@@ -48,31 +48,35 @@
         sceneTitleEl.textContent = currentScene.title;
         sceneDescriptionEl.textContent = currentScene.description;
         
-        // 3. 🖼️ 이미지 처리 로직 (가장 단순하고 안정적인 로직)
+        // 3. 🖼️ 이미지 처리 로직 (이미지 경로 수정)
         if (currentScene.imageUrl) {
-            sceneImageEl.src = ''; // 이전 이미지 소스 초기화
-            sceneImageEl.style.display = 'none'; // 이미지 태그 숨기기
+            // 💡 수정: imageUrl에서 파일명만 추출하여 '/images/' 경로를 강제합니다.
+            // 이렇게 해야 Render 서버의 정적 파일 경로 규칙을 따릅니다.
+            const filename = currentScene.imageUrl.split('/').pop();
+            const correctImageUrl = `/images/${filename}`; 
+
+            sceneImageEl.src = ''; 
+            sceneImageEl.style.display = 'none'; 
             imagePlaceholderEl.textContent = '이미지 로딩 중...';
             imagePlaceholderEl.classList.remove('hidden');
             
-            // 이미지 로딩을 시도합니다.
             const newImage = new Image();
             newImage.onload = function() {
-                // 성공 시: 플레이스홀더 숨기고, 이미지 태그에 소스를 설정하여 표시
-                sceneImageEl.src = currentScene.imageUrl;
+                // 성공 시
+                sceneImageEl.src = correctImageUrl; // 수정된 경로 사용
                 sceneImageEl.style.display = 'block';
                 imagePlaceholderEl.classList.add('hidden');
             };
             newImage.onerror = function() {
-                // 실패 시: 플레이스홀더에 오류 메시지 표시
-                imagePlaceholderEl.textContent = '이미지를 불러올 수 없습니다. (URL 오류 확인)';
+                // 실패 시
+                imagePlaceholderEl.textContent = `이미지 로드 실패: ${correctImageUrl} (경로 오류 확인)`;
                 imagePlaceholderEl.classList.remove('hidden');
                 sceneImageEl.style.display = 'none';
             };
             // 실제 로딩 시작
-            newImage.src = currentScene.imageUrl; 
+            newImage.src = correctImageUrl; // 수정된 경로 사용
         } else {
-            // URL이 없는 경우: 이미지 숨기고 플레이스홀더 표시
+            // URL이 없는 경우
             sceneImageEl.style.display = 'none';
             imagePlaceholderEl.textContent = '현재 장면에 이미지가 없습니다.';
             imagePlaceholderEl.classList.remove('hidden');
@@ -113,7 +117,8 @@
                     options.body = JSON.stringify(body);
                 }
                 
-                const response = await fetch(url, options);
+                // ✅ 수정: fetch 주소는 Render 서버의 상대 경로를 사용합니다.
+                const response = await fetch(url, options); 
                 
                 // Handle errors if HTTP status code is 400 or higher
                 if (!response.ok) {
@@ -141,8 +146,7 @@
                     await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
                 } else {
                     console.error("Fetch Error:", error);
-                    // 🚨 이 오류 메시지는 로컬 환경에서만 뜨도록 수정
-                    errorEl.textContent = `서버 연결 실패! (오류: ${error.message})`; 
+                    errorEl.textContent = `서버 연결 실패! Render 서버에 문제가 없는지 확인하세요. (오류: ${error.message})`;
                     errorEl.classList.remove('hidden');
                     setLoading(false);
                     return false;
@@ -154,8 +158,7 @@
 
     // Game start function (initial load)
     async function loadGame() {
-        sceneTitleEl.textContent = '서버 연결 중...';
-        sceneDescriptionEl.textContent = '첫 번째 딜레마를 불러오는 중입니다. 잠시만 기다려주세요.';
+        // H1과 P 태그에 초기 로딩 메시지가 있으므로, UI 업데이트 없이 바로 요청을 보냅니다.
         // ✅ 수정: 로컬 주소 'http://localhost:8080' 삭제하고 상대 경로로 변경!
         await fetchGameData('/api/game/start'); 
     }
