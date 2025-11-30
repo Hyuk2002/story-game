@@ -1,135 +1,3 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>주유소 딜레마</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0d1a2b; /* 더 어두운 배경 */
-            color: #e4e4e7; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        #game-container {
-            width: 100%;
-            max-width: 800px;
-            background-color: #1c2b46; /* 컨테이너 배경 */
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
-        }
-        #scene-image-container {
-            width: 100%;
-            height: 450px; /* 고정 높이 */
-            background-color: #333; /* 이미지 로딩 전 배경색 */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            overflow: hidden; 
-        }
-        #scene-image {
-            width: 100%;
-            height: 100%;
-            object-fit: cover; 
-            border-radius: 8px;
-            display: none; 
-        }
-        .image-placeholder-text {
-            color: #fff;
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-        .story-text {
-            white-space: pre-wrap;
-            line-height: 1.7;
-            margin-bottom: 20px;
-            font-size: 1.1em;
-        }
-        .choice-button {
-            transition: all 0.2s;
-        }
-        .choice-button:hover {
-            transform: translateY(-2px);
-            background-color: #dc2626; 
-            box-shadow: 0 5px 15px rgba(220, 38, 38, 0.4); 
-        }
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 10px;
-        }
-        .stat-item {
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-weight: 600;
-            text-align: center;
-            font-size: 0.85rem;
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #f59e0b; 
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 2s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
-</head>
-<body>
-
-<div id="game-container">
-    
-    <div class="mb-6 p-4 bg-gray-800 rounded-lg">
-        <div id="status-user" class="text-lg font-bold text-yellow-300 mb-3">플레이어: 로딩 중...</div>
-        
-        <!-- 스탯 표시 그리드 -->
-        <div id="stats-grid" class="status-grid text-xs">
-            <div id="health" class="stat-item bg-red-800 text-white"></div>
-            <div id="reputation" class="stat-item bg-blue-700 text-white"></div>
-            <div id="morality" class="stat-item bg-green-700 text-white"></div>
-            <div id="danger-level" class="stat-item bg-yellow-700 text-white"></div>
-            <div id="ptsd-level" class="stat-item bg-purple-700 text-white"></div>
-        </div>
-    </div>
-
-    <!-- 장면 이미지 컨테이너 -->
-    <div id="scene-image-container">
-        <!-- 이미지가 없을 때 표시되는 텍스트 -->
-        <div id="image-placeholder" class="image-placeholder-text">이미지 로딩 중 / 없음</div>
-        <!-- 실제 이미지가 로드될 공간 -->
-        <img id="scene-image" src="" alt="현재 장면 이미지">
-    </div>
-
-    <h1 id="scene-title" class="text-4xl font-bold mb-4 text-red-300">로딩 중...</h1>
-    
-    <p id="scene-description" class="story-text text-gray-300"></p>
-
-    <div id="choices-container" class="space-y-3 mt-6">
-        <!-- 선택지가 여기에 동적으로 삽입됩니다. -->
-        <div id="loading-indicator" class="flex justify-center hidden">
-            <div class="loader"></div>
-        </div>
-    </div>
-    
-    <div id="error-message" class="mt-6 p-3 bg-red-800 text-white rounded-lg font-bold hidden"></div>
-
-</div>
-
 <script>
     // Game state variables
     let currentState = {};
@@ -273,7 +141,8 @@
                     await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
                 } else {
                     console.error("Fetch Error:", error);
-                    errorEl.textContent = `서버 연결 실패! Express 서버(http://localhost:8080) 실행 여부를 확인하세요. (오류: ${error.message})`;
+                    // 🚨 이 오류 메시지는 로컬 환경에서만 뜨도록 수정
+                    errorEl.textContent = `서버 연결 실패! (오류: ${error.message})`; 
                     errorEl.classList.remove('hidden');
                     setLoading(false);
                     return false;
@@ -287,13 +156,15 @@
     async function loadGame() {
         sceneTitleEl.textContent = '서버 연결 중...';
         sceneDescriptionEl.textContent = '첫 번째 딜레마를 불러오는 중입니다. 잠시만 기다려주세요.';
-        await fetchGameData('http://localhost:8080/api/game/start');
+        // ✅ 수정: 로컬 주소 'http://localhost:8080' 삭제하고 상대 경로로 변경!
+        await fetchGameData('/api/game/start'); 
     }
 
     // Scene transition function (called on button click)
     async function moveScene(nextSceneId) {
         const success = await fetchGameData(
-            'http://localhost:8080/api/game/move', 
+            // ✅ 수정: 로컬 주소 'http://localhost:8080' 삭제하고 상대 경로로 변경!
+            '/api/game/move', 
             'POST', 
             { 
                 nextSceneId: nextSceneId,
@@ -309,6 +180,3 @@
     // Start game on page load
     window.addEventListener('load', loadGame);
 </script>
-
-</body>
-</html>
